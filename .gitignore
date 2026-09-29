@@ -1,8 +1,18 @@
+# Python
 __pycache__/
 *.py[oc]
+*.egg-info/
 build/
 dist/
-wheels/
+.venv/
+.pytest_cache/
+
+# Downloaded + derived data
 data/
-*.egg-info
-.venv
+models/
+results/
+
+# OS / editors
+.DS_Store
+.ipynb_checkpoints/
+.vscode/

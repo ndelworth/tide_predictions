@@ -1,11 +1,13 @@
 [project]
-name = "tide-predictions"
+name = "tide-predictions-real"
 version = "0.1.0"
-description = "Add your description here"
+description = "48-hour water-level forecasts for Pointe-du-Chêne: harmonic tide + transformer surge model"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "matplotlib>=3.11.1",
-    "pandas>=3.0.5",
-    "requests>=2.34.2",
+    "matplotlib>=3.9",
+    "numpy>=2.5.3",
+    "pandas>=3.0.6",
+    "requests>=2.32",
+    "torch>=2.14.0",
 ]
