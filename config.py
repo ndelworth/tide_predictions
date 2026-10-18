@@ -25,6 +25,7 @@ WX_VARS = ["pressure_msl", "wind_u_10m", "wind_v_10m", "precipitation", "wind_gu
 ROOT       = Path(__file__).resolve().parent
 DATA_DIR   = ROOT / "data"
 MODEL_PATH = ROOT / "models" / "surge_model.pt"
+TIDE_PATH  = ROOT / "models" / "tide_coefficients.json"
 
 WLO_CSV       = DATA_DIR / "raw" / "wlo.csv"
 WX_ACTUAL_CSV = DATA_DIR / "raw" / "weather_actual.csv"

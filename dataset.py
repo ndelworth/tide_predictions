@@ -1,7 +1,9 @@
+import json
+
 import numpy as np
 import pandas as pd
 
-from config import (ACTUAL_WITH_SURGE_CSV, FORECAST_RUNS_NPZ, RUN_MAX_LEAD, START, TRAIN_END,
+from config import (ACTUAL_WITH_SURGE_CSV, FORECAST_RUNS_NPZ, RUN_MAX_LEAD, START, TIDE_PATH, TRAIN_END,
                     WLO_CSV, WX_ACTUAL_CSV, WX_RUNS_CSV, WX_VARS)
 
 TIDAL_PERIODS_HOURS = {
@@ -15,9 +17,32 @@ TIDAL_PERIODS_HOURS = {
 }
 
 
-def harmonic_basis(n_hours):
-    phase = np.outer(np.arange(n_hours), 2 * np.pi / np.array(list(TIDAL_PERIODS_HOURS.values())))
-    return np.column_stack([np.ones(n_hours), np.cos(phase), np.sin(phase)])
+def harmonic_basis(hours_since_start):
+    hours_since_start = np.asarray(hours_since_start, dtype=float)
+    phase = np.outer(hours_since_start, 2 * np.pi / np.array(list(TIDAL_PERIODS_HOURS.values())))
+    return np.column_stack([np.ones(len(hours_since_start)), np.cos(phase), np.sin(phase)])
+
+
+def hours_since_start(times):
+    return np.asarray((times - START) / pd.Timedelta(hours=1))
+
+
+def save_tide_coefficients(coefficients):
+    n = len(TIDAL_PERIODS_HOURS)
+    TIDE_PATH.parent.mkdir(exist_ok=True)
+    TIDE_PATH.write_text(json.dumps({
+        "start": START.isoformat(), "train_end": TRAIN_END.isoformat(), "mean": coefficients[0],
+        "constituents": {name: {"period_hours": period, "cos": coefficients[1 + i], "sin": coefficients[1 + n + i]}
+                         for i, (name, period) in enumerate(TIDAL_PERIODS_HOURS.items())},
+    }, indent=2))
+
+
+def tide_at(times):
+    saved = json.loads(TIDE_PATH.read_text())
+    assert pd.Timestamp(saved["start"]) == START, "tide_coefficients.json was fit with a different START"
+    constituents = [saved["constituents"][name] for name in TIDAL_PERIODS_HOURS]
+    coefficients = np.array([saved["mean"], *(c["cos"] for c in constituents), *(c["sin"] for c in constituents)])
+    return harmonic_basis(hours_since_start(times)) @ coefficients
 
 
 def with_wind_stress(weather):
@@ -31,16 +56,19 @@ def build_actual_weather_with_surge():
     hours = pd.date_range(START, water_level.last_valid_index(), freq="h")
     water_level = water_level.reindex(hours)
 
-    X = harmonic_basis(len(hours))
+    X = harmonic_basis(hours_since_start(hours))
     fit_hours = (hours <= TRAIN_END) & water_level.notna().to_numpy()
-    tide = X @ np.linalg.lstsq(X[fit_hours], water_level[fit_hours].to_numpy(), rcond=None)[0]
+    coefficients = np.linalg.lstsq(X[fit_hours], water_level[fit_hours].to_numpy(), rcond=None)[0]
+    tide = X @ coefficients
+    save_tide_coefficients(coefficients.tolist())
 
     weather = pd.read_csv(WX_ACTUAL_CSV, index_col="time", parse_dates=["time"]).reindex(hours)
     df = pd.DataFrame({"wlo": water_level, "tide": tide, "surge": water_level - tide})
     df = df.join(with_wind_stress(weather)).rename_axis("time")
     df.to_csv(ACTUAL_WITH_SURGE_CSV, float_format="%.6g")
     print(f"Saved {ACTUAL_WITH_SURGE_CSV}: {hours[0]} -> {hours[-1]}, water level observed "
-          f"{water_level.notna().mean():.1%}, tide fit on {fit_hours.sum():,} hours up to TRAIN_END")
+          f"{water_level.notna().mean():.1%}, tide fit on {fit_hours.sum():,} hours up to TRAIN_END; "
+          f"coefficients -> {TIDE_PATH}")
 
 
 def build_forecast_runs():

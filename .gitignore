@@ -9,8 +9,10 @@ dist/
 
 # Downloaded + derived data
 data/
-models/
 results/
+models/*
+!models/surge_model.pt
+!models/tide_coefficients.json
 
 # OS / editors
 .DS_Store
